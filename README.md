@@ -1,9 +1,9 @@
-# 💸 BudgetMitra
+# 💸 SpendWise
 
-BudgetMitra is a modern personal expense tracker built using Python and Streamlit.  
+SpendWise is a modern personal expense tracker built using Python and Streamlit.  
 It helps users manage daily expenses, track budgets, and visualize financial insights with a clean dashboard.
 
-Version 1 of BudgetMitra - initial Release 1.0.0
+Version 1 of SpendWise - initial Release 1.0.0
 ---
 
 ## 🚀 Features
@@ -28,16 +28,16 @@ Version 1 of BudgetMitra - initial Release 1.0.0
 ## 📸 Screenshots
 
 ### Dashboard
-https://github.com/sharvilmithari/BudgetMitra/raw/main/dashboard.PNG
+https://github.com/sharvilmithari/SpendWise/raw/main/dashboard.PNG
 
 ### Add Transaction
-https://github.com/sharvilmithari/BudgetMitra/raw/main/add.PNG
+https://github.com/sharvilmithari/SpendWise/raw/main/add.PNG
 
 ### History
-https://github.com/sharvilmithari/BudgetMitra/raw/main/history.PNG
+https://github.com/sharvilmithari/SpendWise/raw/main/history.PNG
 
 ### Analytics
-https://github.com/sharvilmithari/BudgetMitra/raw/main/analytics.PNG
+https://github.com/sharvilmithari/SpendWise/blob/main/analytics.PNG
 
 ## ▶️ How to Run Locally
 
