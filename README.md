@@ -27,12 +27,16 @@ It helps users manage daily expenses, track budgets, and visualize financial ins
 ## 📸 Screenshots
 
 ### Dashboard
-![Dashboard](your-image-link-here)
+https://github.com/sharvilmithari/BudgetMitra/raw/main/dashboard.PNG
 
 ### Add Transaction
-![Add](your-image-link-here)
+https://github.com/sharvilmithari/BudgetMitra/raw/main/add.PNG
 
----
+### History
+https://github.com/sharvilmithari/BudgetMitra/raw/main/history.PNG
+
+### Analytics
+https://github.com/sharvilmithari/BudgetMitra/raw/main/analytics.PNG
 
 ## ▶️ How to Run Locally
 
