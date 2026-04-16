@@ -97,12 +97,15 @@ def signup(username: str, password: str) -> bool:
     return True
 
 
-def login(username: str, password: str) -> bool:
-    """Verify credentials. Returns True on success."""
-    res = supabase.table("users").select("password").eq("username", username).execute()
+def login(username: str, password: str):
+    """Verify credentials. Returns user UUID on success, or False."""
+    res = supabase.table("users").select("id, password").eq("username", username).execute()
     if not res.data:
         return False
-    return res.data[0]["password"] == _hash(password)
+    row = res.data[0]
+    if row["password"] != _hash(password):
+        return False
+    return row["id"]
 
 
 def reset_password(username: str, new_password: str) -> bool:
@@ -121,7 +124,10 @@ def reset_password(username: str, new_password: str) -> bool:
 def load_user_data(username: str) -> pd.DataFrame:
     """Load all transactions for the logged-in user."""
     empty = pd.DataFrame(columns=["id", "type", "amount", "category", "date", "notes"])
-    res = supabase.table("transactions").select("*").eq("user_id", username).execute()
+    user_uuid = st.session_state.get("user_uuid")
+    if not user_uuid:
+        return empty
+    res = supabase.table("transactions").select("*").eq("user_id", user_uuid).execute()
     if not res.data:
         return empty
     df = pd.DataFrame(res.data)
@@ -134,8 +140,9 @@ def load_user_data(username: str) -> pd.DataFrame:
 def save_transaction(username: str, t_type: str, amount: float,
                      category: str, date, notes: str):
     """Insert a single new transaction into Supabase."""
+    user_uuid = st.session_state.get("user_uuid")
     supabase.table("transactions").insert({
-        "user_id": username,
+        "user_id": user_uuid,
         "type": t_type,
         "amount": float(amount),
         "category": category,
@@ -146,7 +153,8 @@ def save_transaction(username: str, t_type: str, amount: float,
 
 def delete_transaction_db(username: str, row_id: int):
     """Delete a transaction by its Supabase row id (scoped to user)."""
-    supabase.table("transactions").delete().eq("id", row_id).eq("user_id", username).execute()
+    user_uuid = st.session_state.get("user_uuid")
+    supabase.table("transactions").delete().eq("id", row_id).eq("user_id", user_uuid).execute()
 
 
 # ─────────────────────────────────────────────
@@ -946,10 +954,14 @@ def show_login():
             if st.button("Login →", key="login_btn", use_container_width=True):
                 if not username or not password:
                     st.error("Please enter both fields.")
-                elif login(username, password):
-                    st.session_state["user"] = username; st.rerun()
                 else:
-                    st.error("❌ Invalid username or password.")
+                    user_uuid = login(username, password)
+                    if user_uuid:
+                        st.session_state["user"] = username
+                        st.session_state["user_uuid"] = user_uuid
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid username or password.")
 
         elif tab == "signup":
             if st.button("Create Account →", key="signup_btn", use_container_width=True):
