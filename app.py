@@ -121,8 +121,7 @@ def reset_password(username: str, new_password: str) -> bool:
 def load_user_data(username: str) -> pd.DataFrame:
     """Load all transactions for the logged-in user."""
     empty = pd.DataFrame(columns=["id", "type", "amount", "category", "date", "notes"])
-    user_id = st.session_state["userid"]
-    res = supabase.table("transactions").select("*").eq("user_id", user_id).execute()
+    res = supabase.table("transactions").select("*").eq("username", username).execute()
     if not res.data:
         return empty
     df = pd.DataFrame(res.data)
@@ -136,7 +135,7 @@ def save_transaction(username: str, t_type: str, amount: float,
                      category: str, date, notes: str):
     """Insert a single new transaction into Supabase."""
     supabase.table("transactions").insert({
-        "user_id": st.session_state["user_id"],
+        "username": username,
         "type": t_type,
         "amount": float(amount),
         "category": category,
@@ -147,7 +146,7 @@ def save_transaction(username: str, t_type: str, amount: float,
 
 def delete_transaction_db(username: str, row_id: int):
     """Delete a transaction by its Supabase row id (scoped to user)."""
-    supabase.table("transactions").delete().eq("id", row_id).eq("user_id", user_id).execute()
+    supabase.table("transactions").delete().eq("id", row_id).eq("username", username).execute()
 
 
 # ─────────────────────────────────────────────
