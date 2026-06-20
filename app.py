@@ -14,8 +14,8 @@ from supabase import create_client, Client
 #  SUPABASE CLIENT
 # ─────────────────────────────────────────────
 
-SUPABASE_URL = "https://qqdiqibbwukxkkyenylp.supabase.co"
-SUPABASE_KEY = "sb_publishable__O01VDfxjTVKbxJIQli9nQ_cJA22CUX"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 
 @st.cache_resource

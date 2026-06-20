@@ -1,4 +1,4 @@
 .env
+.keyenv
 __pycache__/
-*.__pycache__
 .vscode/
