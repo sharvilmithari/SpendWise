@@ -1,4 +1,4 @@
-# 💰 Student Monthly Expense Tracker — India Edition 🇮🇳
+# 💰 Student Monthly Expense Tracker — India Edition
 
 > A professional, LinkedIn-ready personal finance web app built with **Python + Streamlit**.
 > Designed for Indian students to track income, expenses, budgets, and spending patterns.
