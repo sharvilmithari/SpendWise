@@ -97,21 +97,24 @@ def signup(email: str, username: str, password: str) -> tuple:
         return True, ""
     except Exception as e:
         err = str(e)
-        if "already registered" in err.lower() or "already been registered" in err.lower():
+        err_lower = err.lower()
+        if "already registered" in err_lower or "already been registered" in err_lower:
             return False, "An account with this email already exists."
+        if "name or service not known" in err_lower or "getaddrinfo failed" in err_lower or "connect" in err_lower or "temporary failure" in err_lower:
+            return False, "Failed to connect to the Supabase database. Please check if your SUPABASE_URL in key.env is correct/active, and that your internet connection is active."
         return False, err
 
 
-def login(email: str, password: str) -> bool:
+def login(email: str, password: str) -> tuple:
     """
     Sign in via Supabase Auth.
     Stores user_uuid, user_email, and username in session_state.
-    Returns True on success, False on failure.
+    Returns (True, "") on success, or (False, error_message) on failure.
     """
     try:
         res = supabase.auth.sign_in_with_password({"email": email, "password": password})
         if res.user is None:
-            return False
+            return False, "Login failed. Please try again."
         st.session_state["user_uuid"] = res.user.id
         st.session_state["user_email"] = res.user.email
 
@@ -125,9 +128,13 @@ def login(email: str, password: str) -> bool:
         )
         username = profile.data["username"] if profile.data else res.user.email
         st.session_state["user"] = username
-        return True
-    except Exception:
-        return False
+        return True, ""
+    except Exception as e:
+        err = str(e)
+        err_lower = err.lower()
+        if "name or service not known" in err_lower or "getaddrinfo failed" in err_lower or "connect" in err_lower or "temporary failure" in err_lower:
+            return False, "Failed to connect to the Supabase database. Please check if your SUPABASE_URL in key.env is correct/active, and that your internet connection is active."
+        return False, "Invalid email or password."
 
 
 def request_password_reset(email: str) -> tuple:
@@ -136,7 +143,11 @@ def request_password_reset(email: str) -> tuple:
         supabase.auth.reset_password_email(email)
         return True, ""
     except Exception as e:
-        return False, str(e)
+        err = str(e)
+        err_lower = err.lower()
+        if "name or service not known" in err_lower or "getaddrinfo failed" in err_lower or "connect" in err_lower or "temporary failure" in err_lower:
+            return False, "Failed to connect to the Supabase database. Please check if your SUPABASE_URL in key.env is correct/active, and that your internet connection is active."
+        return False, err
 
 
 # ─────────────────────────────────────────────
@@ -1025,10 +1036,12 @@ def show_login():
             if st.button("Login →", key="login_btn", use_container_width=True):
                 if not email or not password:
                     st.error("Please enter both fields.")
-                elif login(email, password):
-                    st.rerun()
                 else:
-                    st.error("❌ Invalid email or password.")
+                    ok, err = login(email, password)
+                    if ok:
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {err}")
 
         # ── SIGN UP TAB ──
         elif tab == "signup":

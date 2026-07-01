@@ -675,6 +675,10 @@ def _hero_section():
         <div class="sw-hero-orb-1"></div>
         <div class="sw-hero-orb-2"></div>
         <div class="sw-hero-orb-3"></div>
+        <div class="sw-badge">
+            <div class="sw-badge-dot"></div>
+            <span>🔒 &nbsp;100% Secure & Private</span>
+        </div>
         <div class="sw-hero-title">Spend<span>Wise</span></div>
         <div class="sw-hero-sub">
             Track smarter. Save better.<br>
