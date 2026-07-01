@@ -14,12 +14,18 @@ from supabase import create_client, Client
 #  SUPABASE CLIENT
 # ─────────────────────────────────────────────
 
+from dotenv import load_dotenv
+load_dotenv("key.env")
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 
 @st.cache_resource
 def get_supabase() -> Client:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        st.error("Supabase environment variables not set. Please check your key.env file.")
+        st.stop()
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 supabase = get_supabase()
@@ -771,13 +777,17 @@ def page_analytics(df: pd.DataFrame):
         fig, ax = plt.subplots(figsize=(5, 4))
         fig.patch.set_facecolor("#0f1520")
         ax.set_facecolor("#0f1520")
-        wedges, texts, autotexts = ax.pie(
+        pie_results = ax.pie(
             cat_totals, labels=None, autopct="%1.1f%%",
             colors=CHART_COLORS[:len(cat_totals)], startangle=140,
             pctdistance=0.75, wedgeprops=dict(width=0.45, edgecolor="#1C2128", linewidth=2),
         )
-        for at in autotexts:
-            at.set_color("white"); at.set_fontsize(10); at.set_fontweight("bold")
+        if len(pie_results) == 3:
+            wedges, texts, autotexts = pie_results
+            for at in autotexts:
+                at.set_color("white"); at.set_fontsize(10); at.set_fontweight("bold")
+        else:
+            wedges, texts = pie_results
         import matplotlib.patches as mpatches
         legend_patches = [mpatches.Patch(color=CHART_COLORS[i], label=f"{cat}  {fmt(val)}") for i, (cat, val) in enumerate(cat_totals.items())]
         ax.legend(handles=legend_patches, loc="center left", bbox_to_anchor=(1, 0.5), fontsize=9, frameon=False, labelcolor="white")
