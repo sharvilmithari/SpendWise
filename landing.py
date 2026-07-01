@@ -576,38 +576,43 @@ def _hero_section():
         height: 60px !important;
         width: 100%% !important;
         font-family: 'Space Grotesk', sans-serif !important;
-        font-size: 1rem !important;
+        font-size: 1.05rem !important;
         font-weight: 700 !important;
         color: #ffffff !important;
-        letter-spacing: 0.3px !important;
+        letter-spacing: 0.5px !important;
         border-radius: 16px !important;
         border: none !important;
         cursor: pointer !important;
         background: linear-gradient(
             135deg,
-            #6366f1 0%%, #8b5cf6 30%%,
-            #a78bfa 50%%, #8b5cf6 70%%,
-            #6366f1 100%%
+            #4f46e5 0%%,
+            #7c3aed 35%%,
+            #db2777 70%%,
+            #4f46e5 100%%
         ) !important;
         background-size: 300%% auto !important;
-        animation: btn-shimmer 4s linear infinite, btn-glow-pulse 3s ease-in-out infinite !important;
-        transition: transform 0.2s ease, filter 0.2s ease !important;
+        animation: btn-shimmer 3s linear infinite !important;
+        box-shadow: 0 10px 30px -10px rgba(124, 58, 237, 0.5), 
+                    inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+        transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
         overflow: hidden !important;
     }
     .sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(1) button:hover {
         transform: translateY(-4px) scale(1.02) !important;
-        filter: brightness(1.12) !important;
+        box-shadow: 0 20px 40px -10px rgba(124, 58, 237, 0.7), 
+                    0 0 30px rgba(219, 39, 119, 0.3),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+        filter: brightness(1.1) !important;
     }
     .sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(1) button:active {
         transform: translateY(-1px) scale(0.99) !important;
     }
-    /* Gloss sheen via pseudo - override with gradient overlay using outline trick */
     .sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(1) button::after {
         content: '' !important;
         position: absolute !important;
         top: 0; left: 0; right: 0 !important;
         height: 50%% !important;
-        background: linear-gradient(to bottom, rgba(255,255,255,0.18), transparent) !important;
+        background: linear-gradient(to bottom, rgba(255,255,255,0.22), transparent) !important;
         border-radius: 16px 16px 0 0 !important;
         pointer-events: none !important;
     }
@@ -618,32 +623,30 @@ def _hero_section():
         height: 60px !important;
         width: 100%% !important;
         font-family: 'Space Grotesk', sans-serif !important;
-        font-size: 1rem !important;
+        font-size: 1.02rem !important;
         font-weight: 600 !important;
-        color: #c4b5fd !important;
-        letter-spacing: 0.2px !important;
+        color: #e2e8f0 !important;
+        letter-spacing: 0.3px !important;
         border-radius: 16px !important;
         cursor: pointer !important;
-        background: rgba(99,102,241,0.08) !important;
-        backdrop-filter: blur(16px) !important;
-        -webkit-backdrop-filter: blur(16px) !important;
-        border: 1px solid rgba(139,92,246,0.45) !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
         box-shadow:
-            0 0 0 1px rgba(99,102,241,0.1),
-            inset 0 1px 0 rgba(255,255,255,0.07),
-            0 8px 32px rgba(0,0,0,0.3) !important;
-        transition: all 0.25s ease !important;
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            0 8px 32px rgba(0, 0, 0, 0.2) !important;
+        transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
     }
     .sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(2) button:hover {
-        color: #e2e8f0 !important;
-        background: rgba(99,102,241,0.18) !important;
-        border-color: rgba(139,92,246,0.75) !important;
+        color: #ffffff !important;
+        background: rgba(255, 255, 255, 0.06) !important;
+        border-color: rgba(124, 58, 237, 0.4) !important;
         box-shadow:
-            0 0 24px rgba(99,102,241,0.35),
-            0 0 70px rgba(139,92,246,0.18),
-            inset 0 1px 0 rgba(255,255,255,0.1),
-            0 14px 40px rgba(0,0,0,0.4) !important;
-        transform: translateY(-3px) !important;
+            0 0 25px rgba(124, 58, 237, 0.25),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 12px 40px rgba(0, 0, 0, 0.35) !important;
+        transform: translateY(-4px) scale(1.02) !important;
     }
     .sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(2) button:active {
         transform: translateY(-1px) !important;
@@ -658,16 +661,28 @@ def _hero_section():
         font-size: 1.05rem !important;
         font-weight: 700 !important;
         color: #ffffff !important;
+        letter-spacing: 0.5px !important;
         border-radius: 16px !important;
         border: none !important;
-        background: linear-gradient(135deg,#6366f1 0%%,#8b5cf6 35%%,#a78bfa 50%%,#8b5cf6 70%%,#6366f1 100%%) !important;
+        background: linear-gradient(
+            135deg,
+            #4f46e5 0%%,
+            #7c3aed 35%%,
+            #db2777 70%%,
+            #4f46e5 100%%
+        ) !important;
         background-size: 300%% auto !important;
-        animation: btn-shimmer 4s linear infinite, btn-glow-pulse 3s ease-in-out infinite !important;
-        transition: transform 0.2s ease, filter 0.2s ease !important;
+        animation: btn-shimmer 3s linear infinite !important;
+        box-shadow: 0 10px 30px -10px rgba(124, 58, 237, 0.5), 
+                    inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+        transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
     }
     .sw-cta-bottom-wrap div[data-testid="column"]:nth-of-type(1) button:hover {
         transform: translateY(-4px) scale(1.02) !important;
-        filter: brightness(1.12) !important;
+        box-shadow: 0 20px 40px -10px rgba(124, 58, 237, 0.7), 
+                    0 0 30px rgba(219, 39, 119, 0.3),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+        filter: brightness(1.1) !important;
     }
     </style>
 
