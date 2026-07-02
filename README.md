@@ -1,7 +1,7 @@
-# 💰 Student Monthly Expense Tracker — India Edition
+# 💰 SpendWise - Personal Expense Tracker
 
 > A professional, LinkedIn-ready personal finance web app built with **Python + Streamlit**.
-> Designed for Indian students to track income, expenses, budgets, and spending patterns.
+> Designed for students to track income, expenses, budgets, and spending patterns.
 
 ---
 
