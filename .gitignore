@@ -1,4 +1,7 @@
 .env
 .keyenv
+key.env
 __pycache__/
 .vscode/
+*.db
+spendwise_local.db

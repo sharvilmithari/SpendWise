@@ -14,11 +14,15 @@ from supabase import create_client, Client
 #  SUPABASE CLIENT
 # ─────────────────────────────────────────────
 
-from dotenv import load_dotenv
-load_dotenv("key.env")
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Try Streamlit secrets first (for cloud deployment), then fall back to key.env (local)
+try:
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+except (KeyError, FileNotFoundError):
+    from dotenv import load_dotenv
+    load_dotenv("key.env")
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 
 @st.cache_resource
@@ -543,24 +547,38 @@ def render_section_header(title):
 # ─────────────────────────────────────────────
 
 def page_dashboard(df: pd.DataFrame, settings: dict):
+    from ai_copilot import calculate_health_score, generate_automated_insights, get_predictions
+    from database import get_goals, get_groups
+    from split_bills import calculate_group_balances
+    
     df = df.copy()
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date"])
 
+    user_uuid = st.session_state.get("user_uuid")
+    username = st.session_state.get("user")
+
     st.markdown('<div class="page-title">Dashboard</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Your complete financial overview</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-subtitle">Welcome to your upgraded AI Financial Copilot platform</div>', unsafe_allow_html=True)
 
     summary = get_summary(df)
     month_expense = get_this_month_expense(df)
     today_expense = get_today_expense(df)
+    
+    # Load AI insights and values
+    goals = get_goals(user_uuid)
+    health_info = calculate_health_score(df, settings)
+    insights = generate_automated_insights(df, settings, goals)
+    predictions = get_predictions(df, settings)
 
+    # 1. Row 1: KPI Metric Cards
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         render_metric_card("Total Income", fmt(summary["income"]), "card-income", "income", "All time")
     with c2:
         render_metric_card("Total Expenses", fmt(summary["expense"]), "card-expense", "expense", "All time")
     with c3:
-        render_metric_card("Net Balance", fmt(summary["balance"]), "card-balance", "balance",
+        render_metric_card("Net Savings Balance", fmt(summary["balance"]), "card-balance", "balance",
                            "✅ Surplus" if summary["balance"] >= 0 else "⚠️ Deficit")
     with c4:
         budget = settings["monthly_budget"]
@@ -570,6 +588,10 @@ def page_dashboard(df: pd.DataFrame, settings: dict):
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # 2. Alerts, warnings, and predicted spending banner
+    if predictions["warning"]:
+        render_banner(predictions["warning"], "warn")
+
     budget = settings["monthly_budget"]
     if budget > 0:
         pct = (month_expense / budget) * 100
@@ -577,35 +599,91 @@ def page_dashboard(df: pd.DataFrame, settings: dict):
             render_banner(f"🚨 Budget exceeded! You've spent {fmt(month_expense)} of your {fmt(budget)} budget this month ({pct:.0f}%).", "danger")
         elif pct >= 80:
             render_banner(f"⚠️ Heads up! You've used {pct:.0f}% of your monthly budget. Only {fmt(budget - month_expense)} remaining.", "warn")
-        else:
-            render_banner(f"✅ Budget on track! {fmt(budget - month_expense)} remaining ({100 - pct:.0f}% left).", "success")
 
     daily_limit = settings.get("daily_limit", 0)
     if daily_limit > 0 and today_expense > daily_limit:
         render_banner(f"🔴 Daily limit breached! Today's spending: {fmt(today_expense)} (limit: {fmt(daily_limit)}).", "danger")
 
-    render_section_header("📅 This Month at a Glance")
-    m1, m2, m3 = st.columns(3)
-    now = pd.Timestamp.now()
-    tx_count = len(df[(df["date"].dt.year == now.year) & (df["date"].dt.month == now.month)])
-    with m1:
-        st.metric("Month Expenses", fmt(month_expense))
-    with m2:
-        st.metric("Today's Spending", fmt(today_expense))
-    with m3:
-        st.metric("Transactions This Month", tx_count)
+    # 3. Row 2: Financial Health & AI Insights (Glassmorphism layout)
+    col_health, col_insights = st.columns([1, 2])
+    
+    with col_health:
+        render_section_header("🏥 Health Score")
+        st.markdown(f"""
+        <div class="metric-card card-balance" style="text-align: center; padding: 30px 20px;">
+            <div style="font-size: 3.2rem; font-weight: 800; color: #818cf8; font-family: 'JetBrains Mono', monospace; line-height: 1;">
+                {health_info['score']}<span style="font-size:1.5rem; color:#475569;">/100</span>
+            </div>
+            <div style="font-size: 1rem; font-weight: 700; color: #e2e8f0; margin-top: 12px;">{health_info['status']}</div>
+            <div style="font-size: 0.72rem; color: #64748b; margin-top: 8px; font-weight: 500;">
+                Calculated on savings rate, consistency, and budget usage.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col_insights:
+        render_section_header("🤖 Copilot Insights")
+        insight_html = ""
+        for ins in insights:
+            color_border = "rgba(99,102,241,0.3)"
+            if "📈" in ins or "⚠️" in ins or "⚡" in ins or "🚨" in ins:
+                color_border = "rgba(248,113,113,0.3)"
+            elif "📉" in ins or "💰" in ins or "✅" in ins:
+                color_border = "rgba(52,211,153,0.3)"
+                
+            insight_html += f"""
+            <div style="background:rgba(255,255,255,0.02); border-left:3px solid {color_border}; border-radius:8px; padding:10px 14px; margin-bottom:8px; font-size:0.875rem;">
+                {ins}
+            </div>
+            """
+        st.markdown(insight_html, unsafe_allow_html=True)
 
+    # 4. Row 3: Month at Glance, Goals Progress, and Split Bills summaries
+    col_goals, col_splits = st.columns([1, 1])
+    
+    with col_goals:
+        render_section_header("🎯 Goal Progress")
+        if not goals:
+            st.info("No active goals. Set goals in the Smart Goals page to see progress here.")
+        else:
+            for goal in goals[:3]:
+                target = goal["target_amount"]
+                current = goal["current_amount"]
+                pct = min(100.0, (current / target) * 100 if target > 0 else 100.0)
+                st.markdown(f"**{goal['name']}** - {fmt(current)} of {fmt(target)} ({pct:.0f}%)")
+                st.progress(pct / 100.0)
+                
+    with col_splits:
+        render_section_header("👥 Split Bills Standings")
+        groups = get_groups(user_uuid, username)
+        if not groups:
+            st.info("No split bill groups. Create one in the Split Bills page to track debts.")
+        else:
+            summary_found = False
+            for group in groups[:3]:
+                balances, simplified = calculate_group_balances(group["id"])
+                user_bal = balances.get(username, 0.0)
+                if user_bal != 0:
+                    summary_found = True
+                    color_bal = "color:#34d399;" if user_bal > 0 else "color:#f87171;"
+                    sign = "+" if user_bal > 0 else ""
+                    st.markdown(f"**{group['name']}**: <span style='font-family:monospace; {color_bal} font-weight:700;'>{sign}₹{user_bal:,.2f}</span>", unsafe_allow_html=True)
+            if not summary_found and groups:
+                st.success("🎉 You are completely settled up in all your groups!")
+
+    # 5. Row 4: Recent Transactions
     render_section_header("🕐 Recent Transactions")
     if df.empty:
-        st.info("No transactions yet. Add your first transaction from the sidebar!")
+        st.info("No transactions yet. Add your first transaction from the Expense Tracker tab!")
     else:
-        recent = df.sort_values("date", ascending=False).head(10).copy()
+        recent = df.sort_values("date", ascending=False).head(5).copy()
         recent["date"] = recent["date"].dt.strftime("%d %b %Y")
         recent["amount"] = recent["amount"].apply(fmt)
         recent = recent[["date", "type", "category", "amount", "notes"]].rename(
             columns={"date": "Date", "type": "Type", "category": "Category", "amount": "Amount", "notes": "Notes"}
         )
         st.dataframe(recent, use_container_width=True, hide_index=True)
+
 
 
 # ─────────────────────────────────────────────
@@ -855,8 +933,12 @@ def page_analytics(df: pd.DataFrame):
 # ─────────────────────────────────────────────
 
 def page_settings(settings: dict) -> dict:
+    from database import get_gemini_key, save_gemini_key
+    
     st.markdown('<div class="page-title">Settings</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Configure your budget and spending limits</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-subtitle">Configure your budget, API keys, and database options</div>', unsafe_allow_html=True)
+
+    user_uuid = st.session_state.get("user_uuid")
 
     render_section_header("💼 Monthly Budget")
     budget = st.number_input("Set your monthly budget (₹)", min_value=0.0,
@@ -868,14 +950,95 @@ def page_settings(settings: dict) -> dict:
                             value=float(settings.get("daily_limit", 0)), step=50.0, format="%.2f",
                             help="You'll be warned when you exceed this each day. Set ₹0 to disable.")
 
+    render_section_header("🤖 AI Copilot Configuration")
+    existing_key = get_gemini_key(user_uuid)
+    gemini_key = st.text_input("Gemini API Key", value=existing_key, type="password", 
+                               placeholder="AI Copilot needs this key to converse (starts with AIza...)",
+                               help="Get an API key from Google AI Studio")
+
     if st.button("💾 Save Settings"):
         new_settings = {"monthly_budget": budget, "daily_limit": daily}
         user = st.session_state["user"]
         save_settings(user, new_settings)
-        st.success("✅ Settings saved!")
+        save_gemini_key(user_uuid, gemini_key)
+        st.success("✅ Settings saved successfully!")
         return new_settings
 
+    render_section_header("💾 Supabase Schema Setup")
+    with st.expander("Show SQL Setup Script"):
+        st.markdown("""
+        If you want to sync your **Split Bills** and **Smart Goals** across multiple devices, run this SQL script in your **Supabase SQL Editor** to create the required tables:
+        """)
+        sql_content = """-- SQL schema to upgrade SpendWise database with Split Bills and Smart Goals tables.
+-- Run this in your Supabase SQL Editor (Dashboard > SQL Editor > New query > Run).
+
+-- 1. SMART GOALS TABLE
+CREATE TABLE IF NOT EXISTS goals (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    target_amount NUMERIC(15, 2) NOT NULL,
+    current_amount NUMERIC(15, 2) DEFAULT 0.00,
+    target_date DATE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. SPLIT BILLS GROUPS
+CREATE TABLE IF NOT EXISTS split_groups (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_by UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. SPLIT BILLS GROUP MEMBERS
+CREATE TABLE IF NOT EXISTS split_group_members (
+    id SERIAL PRIMARY KEY,
+    group_id INT REFERENCES split_groups(id) ON DELETE CASCADE,
+    friend_name TEXT NOT NULL,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_group_friend UNIQUE (group_id, friend_name)
+);
+
+-- 4. SPLIT BILLS
+CREATE TABLE IF NOT EXISTS split_bills (
+    id SERIAL PRIMARY KEY,
+    group_id INT REFERENCES split_groups(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    paid_by_name TEXT NOT NULL,
+    paid_by_uid UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    date DATE NOT NULL,
+    split_type TEXT DEFAULT 'equal',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. SPLIT BILL SHARES
+CREATE TABLE IF NOT EXISTS split_bill_shares (
+    id SERIAL PRIMARY KEY,
+    bill_id INT REFERENCES split_bills(id) ON DELETE CASCADE,
+    member_name TEXT NOT NULL,
+    share_amount NUMERIC(15, 2) NOT NULL,
+    has_settled BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_bill_member UNIQUE (bill_id, member_name)
+);
+
+-- 6. SPLIT SETTLEMENTS
+CREATE TABLE IF NOT EXISTS split_settlements (
+    id SERIAL PRIMARY KEY,
+    group_id INT REFERENCES split_groups(id) ON DELETE CASCADE,
+    from_member TEXT NOT NULL,
+    to_member TEXT NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    date DATE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);"""
+        st.code(sql_content, language="sql")
+
     return settings
+
 
 
 # ─────────────────────────────────────────────
@@ -910,7 +1073,7 @@ def render_sidebar() -> str:
 
         page = st.radio(
             "Navigate",
-            ["🏠  Dashboard", "➕  Add Transaction", "📋  History", "📈  Analytics", "⚙️  Settings"],
+            ["🏠  Dashboard", "🤖  AI Copilot", "👥  Split Bills", "🎯  Smart Goals", "💰  Expense Tracker", "📈  Analytics", "📋  History", "⚙️  Settings"],
             label_visibility="collapsed",
         )
 
@@ -935,7 +1098,10 @@ def render_sidebar() -> str:
 
     page_map = {
         "🏠  Dashboard": "🏠 Dashboard",
-        "➕  Add Transaction": "💲 Add Transaction",
+        "🤖  AI Copilot": "🤖 AI Copilot",
+        "👥  Split Bills": "👥 Split Bills",
+        "🎯  Smart Goals": "🎯 Smart Goals",
+        "💰  Expense Tracker": "💰 Expense Tracker",
         "📋  History": "📋 History",
         "📈  Analytics": "📈 Analytics",
         "⚙️  Settings": "⚙️ Settings",
@@ -1122,18 +1288,107 @@ def main():
     inject_css()
 
     user = st.session_state["user"]
+    user_uuid = st.session_state["user_uuid"]
     df = load_user_data()
     settings = load_settings(user)
     page = render_sidebar()
 
     if page == "🏠 Dashboard":
         page_dashboard(df, settings)
-    elif page == "💲 Add Transaction":
+    elif page == "🤖 AI Copilot":
+        from ai_copilot import ask_ai_copilot, calculate_health_score, generate_automated_insights, get_predictions
+        from database import get_gemini_key, get_goals
+        
+        # Load API key and goals
+        gemini_api_key = get_gemini_key(user_uuid)
+        goals = get_goals(user_uuid)
+        health_info = calculate_health_score(df, settings)
+        predictions = get_predictions(df, settings)
+        
+        st.markdown('<div class="page-title">🤖 AI Copilot</div>', unsafe_allow_html=True)
+        st.markdown('<div class="page-subtitle">Your personal intelligent financial advisor</div>', unsafe_allow_html=True)
+        
+        col_main, col_side = st.columns([2, 1])
+        
+        with col_side:
+            st.markdown(f"""
+            <div class="metric-card card-balance" style="margin-bottom:15px;">
+                <div class="metric-label">Financial Health</div>
+                <div class="metric-value balance" style="font-size:1.6rem; margin-top:5px;">{health_info['score']}/100</div>
+                <div style="font-size:0.75rem; font-weight:700; color:#e2e8f0; margin-top:8px;">{health_info['status']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("##### 💡 AI Suggestions")
+            for sug in health_info["suggestions"][:3]:
+                st.markdown(f"- {sug}")
+                
+            st.markdown("##### 📈 Expected Forecast")
+            st.markdown(f"- **Expected Income**: ₹{predictions['expected_income']:,.2f}")
+            st.markdown(f"- **Expected Expenses**: ₹{predictions['expected_expense']:,.2f}")
+            st.markdown(f"- **Expected Net Savings**: ₹{predictions['expected_savings']:,.2f}")
+            if predictions['warning']:
+                st.warning(predictions['warning'])
+                
+        with col_main:
+            st.markdown("##### ⚡ Ask AI Copilot")
+            c_q1, c_q2 = st.columns(2)
+            c_q3, c_q4 = st.columns(2)
+            
+            q_asked = ""
+            with c_q1:
+                if st.button("📱 Can I afford an iPhone?", use_container_width=True):
+                    q_asked = "Can I afford an iPhone?"
+            with c_q2:
+                if st.button("⚖️ How is my financial health?", use_container_width=True):
+                    q_asked = "How is my financial health?"
+            with c_q3:
+                if st.button("💸 Where am I wasting money?", use_container_width=True):
+                    q_asked = "Where am I wasting money?"
+            with c_q4:
+                if st.button("📊 How can I save ₹5000 this month?", use_container_width=True):
+                    q_asked = "How can I save ₹5000 this month?"
+                    
+            if "chat_history" not in st.session_state:
+                st.session_state["chat_history"] = []
+                
+            user_input = st.text_input("Ask a question about your finances...", value=q_asked if q_asked else "", placeholder="e.g. Will I run out of money?")
+            send_btn = st.button("💬 Send to Copilot")
+            
+            if (send_btn or q_asked) and user_input:
+                with st.spinner("Analyzing your transactions and thinking..."):
+                    answer = ask_ai_copilot(df, settings, goals, user_input, gemini_api_key)
+                    st.session_state["chat_history"].append({"user": user_input, "ai": answer})
+                    
+            if st.session_state["chat_history"]:
+                st.markdown("<br>##### 💬 Conversation History", unsafe_allow_html=True)
+                for chat in st.session_state["chat_history"]:
+                    st.markdown(f"""
+                    <div style="background:rgba(255,255,255,0.04); border-left:4px solid #818cf8; border-radius:10px; padding:12px; margin-bottom:10px;">
+                        <strong style="color:#a5b4fc;">👤 You:</strong> {chat['user']}
+                    </div>
+                    <div style="background:rgba(99,102,241,0.05); border-left:4px solid #c084fc; border-radius:10px; padding:12px; margin-bottom:20px;">
+                        <strong style="color:#c084fc;">🤖 Copilot:</strong><br>{chat['ai']}
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+    elif page == "👥 Split Bills":
+        from split_bills import page_split_bills
+        page_split_bills(user_uuid, user)
+        
+    elif page == "🎯 Smart Goals":
+        from goals import page_smart_goals
+        page_smart_goals(df, user_uuid)
+        
+    elif page == "💰 Expense Tracker":
         page_add_transaction(df, settings)
+        
     elif page == "📋 History":
         page_history(df)
+        
     elif page == "📈 Analytics":
         page_analytics(df)
+        
     elif page == "⚙️ Settings":
         updated = page_settings(settings)
         if updated is not None:
