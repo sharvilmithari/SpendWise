@@ -59,6 +59,24 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+st.components.v1.html(
+    """
+    <script>
+        function fixTabTitle() {
+            try {
+                if (window.parent && window.parent.document) {
+                    window.parent.document.title = "SpendWise India";
+                }
+                document.title = "SpendWise India";
+            } catch (e) {}
+        }
+        fixTabTitle();
+        setInterval(fixTabTitle, 300);
+    </script>
+    """,
+    height=0,
+)
+
 # ─────────────────────────────────────────────
 #  CONFIGURATION & CONSTANTS
 # ─────────────────────────────────────────────
