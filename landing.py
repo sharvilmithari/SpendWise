@@ -251,28 +251,7 @@ def _footer():
 # ─────────────────────────────────────────────
 
 def show_landing_page():
-    import base64, os
     inject_landing_css()
-
-    # ── Load logo as base64 (same approach as show_login) ──
-    from pathlib import Path
-    logo_path = Path(__file__).parent / "logo.png"
-    logo_b64 = ""
-    if logo_path.exists():
-        with open(logo_path, "rb") as f:
-            logo_b64 = base64.b64encode(f.read()).decode()
-
-    if logo_b64:
-        nav_logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height:60px;width:60px;object-fit:contain;display:block;mix-blend-mode:screen;" alt="SpendWise">'
-    else:
-        nav_logo_html = '<span class="sw-nav-logo">💰 SpendWise</span>'
-
-    # Top Navbar (Logo only)
-    st.markdown(f"""
-    <div class="sw-nav-wrap">
-        <div class="sw-nav-logo-wrap">{nav_logo_html}</div>
-    </div>
-    """, unsafe_allow_html=True)
 
     _hero_section()
     _stats_bar()
