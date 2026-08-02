@@ -25,7 +25,7 @@ def _hero_section():
         <div class="sw-hero-orb-1"></div>
         <div class="sw-hero-orb-2"></div>
         <div class="sw-hero-orb-3"></div>
-        <div class="sw-hero-intro">✦ &nbsp;Introducing</div>
+        <div class="sw-hero-intro">Introducing</div>
         <div class="sw-hero-title">Spend<span>Wise</span></div>
         <div class="sw-hero-sub">
             Track smarter. Save better. Live wiser.<br>
