@@ -949,29 +949,52 @@ def show_login():
         with open(logo_path, "rb") as f:
             logo_b64 = base64.b64encode(f.read()).decode()
 
-    login_active   = "background:linear-gradient(135deg,#4f46e5,#7c3aed)!important;color:#fff!important;border:none!important;box-shadow:0 6px 20px rgba(79,70,229,0.4)!important;"
-    login_inactive = "background:rgba(255,255,255,0.04)!important;color:#475569!important;border:1px solid rgba(255,255,255,0.07)!important;box-shadow:none!important;"
-
-    if tab == "login":
-        col1_style, col2_style, col3_style = login_active, login_inactive, login_inactive
-    elif tab == "signup":
-        col1_style, col2_style, col3_style = login_inactive, login_active, login_inactive
-    else:
-        col1_style, col2_style, col3_style = login_inactive, login_inactive, login_active
-
-    st.markdown(f"""
+    st.markdown("""
     <style>
-    .block-container {{ padding-top: 6vh !important; padding-bottom: 0 !important; max-width: 440px !important; margin: 0 auto !important; }}
-    div[data-testid="stVerticalBlock"] > div:has(> div > .lcard) {{
-        background: rgba(10, 14, 24, 0.98) !important;
-        border: 1px solid rgba(99,102,241,0.15) !important;
-        border-radius: 24px !important; padding: 40px 36px 32px !important;
-        box-shadow: 0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.05) !important;
+    .block-container { padding-top: 6vh !important; padding-bottom: 0 !important; max-width: 440px !important; margin: 0 auto !important; }
+    div[data-testid="stVerticalBlock"] > div:has(> div > .lcard) {
+        background: #0d111a !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        border-radius: 24px !important;
+        padding: 40px 36px 36px !important;
+        box-shadow: 0 30px 90px rgba(0,0,0,0.7), 0 0 40px rgba(147, 51, 234, 0.12) !important;
         backdrop-filter: blur(20px) !important;
-    }}
-    div[data-testid="column"]:nth-of-type(1) .stButton > button {{ {col1_style} height: 42px !important; font-size: 0.82rem !important; }}
-    div[data-testid="column"]:nth-of-type(2) .stButton > button {{ {col2_style} height: 42px !important; font-size: 0.82rem !important; }}
-    div[data-testid="column"]:nth-of-type(3) .stButton > button {{ {col3_style} height: 42px !important; font-size: 0.82rem !important; }}
+    }
+
+    /* Modern text inputs */
+    .stTextInput > div > div > input {
+        background: #161c28 !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 12px !important;
+        height: 48px !important;
+        color: #f8fafc !important;
+        font-size: 0.95rem !important;
+        padding: 0 16px !important;
+    }
+    .stTextInput > div > div > input:focus {
+        border-color: #9333ea !important;
+        box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.25) !important;
+    }
+
+    /* Primary Sunset Gradient Action Buttons */
+    div[data-testid="stButton"] > button {
+        background: linear-gradient(135deg, #ff6b57 0%, #9333ea 50%, #6366f1 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 14px !important;
+        height: 48px !important;
+        font-size: 0.98rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.3px !important;
+        box-shadow: 0 8px 25px rgba(147, 51, 234, 0.4) !important;
+        transition: all 0.25s ease !important;
+    }
+
+    div[data-testid="stButton"] > button:hover {
+        transform: translateY(-2px) scale(1.01) !important;
+        box-shadow: 0 12px 35px rgba(255, 107, 87, 0.5) !important;
+        filter: brightness(1.08) !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -979,35 +1002,23 @@ def show_login():
         st.markdown('<div class="lcard" style="display:none"></div>', unsafe_allow_html=True)
 
         if logo_b64:
-            logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-width:130px;max-height:130px;object-fit:contain;display:block;margin:0 auto 6px;mix-blend-mode:screen;">'
+            logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-width:110px;max-height:110px;object-fit:contain;display:block;margin:0 auto 12px;mix-blend-mode:screen;">'
         else:
-            logo_html = '<div style="font-size:2.4rem;text-align:center;margin-bottom:6px;">💰</div>'
+            logo_html = '<div style="font-size:2.4rem;text-align:center;margin-bottom:12px;">💰</div>'
 
-        st.markdown(
-            logo_html +
-            '<p style="font-size:0.72rem;color:#334155;text-align:center;margin:4px 0 28px;letter-spacing:1px;text-transform:uppercase;font-weight:600;">Track smarter · Save better</p>',
-            unsafe_allow_html=True,
-        )
-
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            if st.button("  Login", key="tab_login", use_container_width=True):
-                st.session_state["login_tab"] = "login"; st.rerun()
-        with c2:
-            if st.button("  Sign Up", key="tab_signup", use_container_width=True):
-                st.session_state["login_tab"] = "signup"; st.rerun()
-        with c3:
-            if st.button("  Forgot Pass", key="tab_forgot", use_container_width=True):
-                st.session_state["login_tab"] = "forgot"; st.rerun()
-
-        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+        st.markdown(logo_html, unsafe_allow_html=True)
 
         # ── LOGIN TAB ──
         if tab == "login":
+            st.markdown("""
+            <h2 style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.7rem;color:#f8fafc;text-align:center;margin:0 0 4px 0;">Welcome back</h2>
+            <p style="color:#64748b;font-size:0.88rem;text-align:center;margin:0 0 24px 0;">Sign in to your account</p>
+            """, unsafe_allow_html=True)
+
             email    = st.text_input("Email", placeholder="you@example.com", key="auth_email")
             password = st.text_input("Password", placeholder="Enter your password",
                                      type="password", key="auth_password")
-            if st.button("Login →", key="login_btn", use_container_width=True):
+            if st.button("Sign In", key="login_btn", use_container_width=True):
                 if not email or not password:
                     st.error("Please enter both fields.")
                 else:
@@ -1017,13 +1028,26 @@ def show_login():
                     else:
                         st.error(f"❌ {err}")
 
+            st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+            c_left, c_mid, c_right = st.columns([1, 4, 1])
+            with c_mid:
+                st.markdown('<p style="font-size:0.85rem;color:#64748b;text-align:center;margin-bottom:4px;">Don\'t have an account?</p>', unsafe_allow_html=True)
+                if st.button("Create an Account", key="switch_to_signup", use_container_width=True):
+                    st.session_state["login_tab"] = "signup"
+                    st.rerun()
+
         # ── SIGN UP TAB ──
         elif tab == "signup":
+            st.markdown("""
+            <h2 style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.7rem;color:#f8fafc;text-align:center;margin:0 0 4px 0;">Create an account</h2>
+            <p style="color:#64748b;font-size:0.88rem;text-align:center;margin:0 0 24px 0;">Sign up to get started</p>
+            """, unsafe_allow_html=True)
+
             email    = st.text_input("Email", placeholder="you@example.com", key="auth_email")
             username = st.text_input("Username", placeholder="Choose a display name", key="auth_username")
             password = st.text_input("Password", placeholder="Min. 6 characters",
                                      type="password", key="auth_password")
-            if st.button("Create Account →", key="signup_btn", use_container_width=True):
+            if st.button("Sign Up", key="signup_btn", use_container_width=True):
                 if not email or not username or not password:
                     st.error("Please fill in all fields.")
                 elif len(password) < 6:
@@ -1037,15 +1061,23 @@ def show_login():
                     else:
                         st.error(f"⚠️ {err}")
 
+            st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+            c_left, c_mid, c_right = st.columns([1, 4, 1])
+            with c_mid:
+                st.markdown('<p style="font-size:0.85rem;color:#64748b;text-align:center;margin-bottom:4px;">Already have an account?</p>', unsafe_allow_html=True)
+                if st.button("Sign In", key="switch_to_login", use_container_width=True):
+                    st.session_state["login_tab"] = "login"
+                    st.rerun()
+
         # ── FORGOT PASSWORD TAB ──
         elif tab == "forgot":
-            st.markdown(
-                '<p style="font-size:0.82rem;color:#8B949E;text-align:center;margin-bottom:16px;">'
-                "Enter your email and we'll send a password reset link.</p>",
-                unsafe_allow_html=True,
-            )
+            st.markdown("""
+            <h2 style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.7rem;color:#f8fafc;text-align:center;margin:0 0 4px 0;">Reset Password</h2>
+            <p style="color:#64748b;font-size:0.88rem;text-align:center;margin:0 0 24px 0;">Enter your email to receive a reset link</p>
+            """, unsafe_allow_html=True)
+
             email = st.text_input("Email", placeholder="you@example.com", key="fp_email")
-            if st.button("Send Reset Link →", key="forgot_btn", use_container_width=True):
+            if st.button("Send Reset Link", key="forgot_btn", use_container_width=True):
                 if not email:
                     st.error("Please enter your email address.")
                 else:
@@ -1056,6 +1088,13 @@ def show_login():
                         st.rerun()
                     else:
                         st.error(f"⚠️ {err}")
+
+            st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+            c_left, c_mid, c_right = st.columns([1, 4, 1])
+            with c_mid:
+                if st.button("← Back to Sign In", key="switch_back_login", use_container_width=True):
+                    st.session_state["login_tab"] = "login"
+                    st.rerun()
 
         if supabase is None:
             st.markdown("<hr style='margin:18px 0; border-color:rgba(255,255,255,0.08);'>", unsafe_allow_html=True)

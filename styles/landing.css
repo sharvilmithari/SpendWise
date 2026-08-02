@@ -137,27 +137,18 @@ html, body, [class*="css"] {
     filter: blur(50px);
 }
 
-.sw-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(91,78,248,0.1);
-    border: 1px solid rgba(91,78,248,0.3);
-    border-radius: 99px;
-    padding: 6px 18px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #a5b4fc;
-    margin-bottom: 32px;
-    letter-spacing: 0.5px;
+.sw-hero-intro {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1rem, 2.5vw, 1.4rem);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
     animation: fadeUp 0.5s 0.1s ease both;
-}
-
-.sw-badge-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: #818cf8;
-    box-shadow: 0 0 8px rgba(129,140,248,0.7);
 }
 
 .sw-hero-title {

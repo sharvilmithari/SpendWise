@@ -17,8 +17,8 @@
   /* Accent colors */
   --accent-indigo: #6366f1;
   --accent-violet: #8b5cf6;
-  --accent-gradient: linear-gradient(135deg, #4f46e5, #7c3aed);
-  --accent-gradient-hover: linear-gradient(135deg, #4338ca, #6d28d9);
+  --accent-gradient: linear-gradient(135deg, #ff6b57 0%, #9333ea 50%, #6366f1 100%);
+  --accent-gradient-hover: linear-gradient(135deg, #ff7c6a 0%, #a855f7 50%, #818cf8 100%);
 
   /* Semantic */
   --color-income: #34d399;
