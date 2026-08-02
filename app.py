@@ -14,29 +14,47 @@ from supabase import create_client, Client
 #  SUPABASE CLIENT
 # ─────────────────────────────────────────────
 
-# Try Streamlit secrets first (for cloud deployment), then fall back to key.env (local)
-try:
-    SUPABASE_URL = st.secrets["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-except (KeyError, FileNotFoundError):
-    from dotenv import load_dotenv
-    load_dotenv("key.env")
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load key.env dynamically using the script's directory absolute path
+env_path = Path(__file__).parent / "key.env"
+load_dotenv(dotenv_path=env_path)
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# Fallback to Streamlit secrets (for cloud deployments)
+if not SUPABASE_URL or not SUPABASE_KEY:
+    try:
+        SUPABASE_URL = st.secrets["SUPABASE_URL"]
+        SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+        if not GEMINI_API_KEY:
+            GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+    except Exception:
+        pass
 
 
 @st.cache_resource
-def get_supabase() -> Client:
+def get_supabase():
     if not SUPABASE_URL or not SUPABASE_KEY:
         st.error("Supabase environment variables not set. Please check your key.env file.")
         st.stop()
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    try:
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        st.sidebar.warning(f"⚠️ Supabase init offline: {e}")
+        return None
 
 supabase = get_supabase()
 
+from pathlib import Path
+favicon_path = Path(__file__).parent / "favicon.png"
+
 st.set_page_config(
     page_title="SpendWise India",
-    page_icon="favicon.png",
+    page_icon=str(favicon_path) if favicon_path.exists() else "💰",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -90,6 +108,8 @@ def signup(email: str, username: str, password: str) -> tuple:
     Create a Supabase Auth user and insert profile row.
     Returns (True, "") on success or (False, error_message) on failure.
     """
+    if supabase is None:
+        return False, "Cannot sign up: Supabase is offline due to invalid API key."
     try:
         res = supabase.auth.sign_up({"email": email, "password": password})
         if res.user is None:
@@ -115,6 +135,8 @@ def login(email: str, password: str) -> tuple:
     Stores user_uuid, user_email, and username in session_state.
     Returns (True, "") on success, or (False, error_message) on failure.
     """
+    if supabase is None:
+        return False, "Cannot log in: Supabase is offline due to invalid API key."
     try:
         res = supabase.auth.sign_in_with_password({"email": email, "password": password})
         if res.user is None:
@@ -143,6 +165,8 @@ def login(email: str, password: str) -> tuple:
 
 def request_password_reset(email: str) -> tuple:
     """Send a password reset email via Supabase Auth."""
+    if supabase is None:
+        return False, "Cannot reset password: Supabase is offline due to invalid API key."
     try:
         supabase.auth.reset_password_email(email)
         return True, ""
@@ -170,23 +194,43 @@ def load_user_data() -> pd.DataFrame:
     if not user_uuid:
         return empty
 
-    res = (
-        supabase.table("transactions")
-        .select("*")
-        .eq("user_id", user_uuid)
-        .execute()
-    )
+    if supabase is None:
+        from database import get_local_transactions
+        txs = get_local_transactions(user_uuid)
+        if not txs:
+            return empty
+        df = pd.DataFrame(txs)
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.dropna(subset=["date"])
+        df["amount"] = df["amount"].astype(float)
+        return df
 
-    if not res.data:
-        return empty
+    try:
+        res = (
+            supabase.table("transactions")
+            .select("*")
+            .eq("user_id", user_uuid)
+            .execute()
+        )
 
-    df = pd.DataFrame(res.data)
+        if not res.data:
+            return empty
 
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df = df.dropna(subset=["date"])
-    df["amount"] = df["amount"].astype(float)
-
-    return df
+        df = pd.DataFrame(res.data)
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.dropna(subset=["date"])
+        df["amount"] = df["amount"].astype(float)
+        return df
+    except Exception:
+        from database import get_local_transactions
+        txs = get_local_transactions(user_uuid)
+        if not txs:
+            return empty
+        df = pd.DataFrame(txs)
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.dropna(subset=["date"])
+        df["amount"] = df["amount"].astype(float)
+        return df
 
 
 def save_transaction(
@@ -196,7 +240,7 @@ def save_transaction(
     date,
     notes: str,
 ):
-    """Insert a single new transaction into Supabase."""
+    """Insert a single new transaction into Supabase or SQLite."""
 
     user_uuid = st.session_state.get("user_uuid")
 
@@ -204,34 +248,52 @@ def save_transaction(
         st.error("User not logged in.")
         return
 
-    (
-        supabase.table("transactions")
-        .insert(
-            {
-                "user_id": user_uuid,
-                "type": t_type,
-                "amount": float(amount),
-                "category": category,
-                "date": str(date),
-                "notes": notes,
-            }
+    if supabase is None:
+        from database import add_local_transaction
+        add_local_transaction(user_uuid, t_type, float(amount), category, str(date), notes)
+        return
+
+    try:
+        (
+            supabase.table("transactions")
+            .insert(
+                {
+                    "user_id": user_uuid,
+                    "type": t_type,
+                    "amount": float(amount),
+                    "category": category,
+                    "date": str(date),
+                    "notes": notes,
+                }
+            )
+            .execute()
         )
-        .execute()
-    )
+    except Exception:
+        from database import add_local_transaction
+        add_local_transaction(user_uuid, t_type, float(amount), category, str(date), notes)
 
 
 def delete_transaction_db(row_id: int):
-    """Delete a transaction by its Supabase row id."""
+    """Delete a transaction by its row id."""
 
     user_uuid = st.session_state.get("user_uuid")
 
-    (
-        supabase.table("transactions")
-        .delete()
-        .eq("id", row_id)
-        .eq("user_id", user_uuid)
-        .execute()
-    )
+    if supabase is None:
+        from database import delete_local_transaction
+        delete_local_transaction(user_uuid, int(row_id))
+        return
+
+    try:
+        (
+            supabase.table("transactions")
+            .delete()
+            .eq("id", row_id)
+            .eq("user_id", user_uuid)
+            .execute()
+        )
+    except Exception:
+        from database import delete_local_transaction
+        delete_local_transaction(user_uuid, int(row_id))
 
 
 # ─────────────────────────────────────────────
@@ -243,12 +305,21 @@ def load_settings(username: str) -> dict:
     user_uuid = st.session_state.get("user_uuid")
     if not user_uuid:
         return defaults
-    res = supabase.table("settings").select("*").eq("user_id", user_uuid).execute()
-    if res.data:
-        row = res.data[0]
-        return {"monthly_budget": row.get("monthly_budget", 0.0),
-                "daily_limit": row.get("daily_limit", 0.0)}
-    return defaults
+
+    if supabase is None:
+        from database import get_local_settings
+        return get_local_settings(user_uuid, defaults)
+
+    try:
+        res = supabase.table("settings").select("*").eq("user_id", user_uuid).execute()
+        if res.data:
+            row = res.data[0]
+            return {"monthly_budget": row.get("monthly_budget", 0.0),
+                    "daily_limit": row.get("daily_limit", 0.0)}
+        return defaults
+    except Exception:
+        from database import get_local_settings
+        return get_local_settings(user_uuid, defaults)
 
 
 def save_settings(username: str, settings: dict):
@@ -256,11 +327,21 @@ def save_settings(username: str, settings: dict):
     user_uuid = st.session_state.get("user_uuid")
     if not user_uuid:
         return
-    supabase.table("settings").upsert({
-        "user_id": user_uuid,
-        "monthly_budget": settings["monthly_budget"],
-        "daily_limit": settings["daily_limit"],
-    }).execute()
+
+    if supabase is None:
+        from database import save_local_settings
+        save_local_settings(user_uuid, settings["monthly_budget"], settings["daily_limit"])
+        return
+
+    try:
+        supabase.table("settings").upsert({
+            "user_id": user_uuid,
+            "monthly_budget": settings["monthly_budget"],
+            "daily_limit": settings["daily_limit"],
+        }).execute()
+    except Exception:
+        from database import save_local_settings
+        save_local_settings(user_uuid, settings["monthly_budget"], settings["daily_limit"])
 
 
 # ─────────────────────────────────────────────
@@ -268,221 +349,14 @@ def save_settings(username: str, settings: dict):
 # ─────────────────────────────────────────────
 
 def inject_css():
-    st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-
-    .stApp {
-        background: #080b11;
-        color: #e2e8f0;
-    }
-
-    .block-container {
-        padding: 2.5rem 2.5rem 4rem !important;
-        max-width: 1200px !important;
-    }
-
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0d111a 0%, #090d15 100%) !important;
-        border-right: 1px solid rgba(99,102,241,0.12) !important;
-        box-shadow: 4px 0 40px rgba(0,0,0,0.5) !important;
-    }
-    [data-testid="stSidebar"] > div { padding-top: 0 !important; }
-    [data-testid="stSidebar"] div[role="radiogroup"] label {
-       display: block !important;
-       width: 100% !important;
-       margin: 6px 0;
-    }
-    [data-testid="stSidebar"] div[role="radiogroup"] label div {
-       white-space: normal !important;
-    }
-    [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) > div {
-        background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.12)) !important;
-        color: #a5b4fc !important;
-        font-weight: 600 !important;
-        border: 1px solid rgba(99,102,241,0.25) !important;
-        box-shadow: 0 0 20px rgba(99,102,241,0.08);
-    }
-    [data-testid="stSidebar"] div[role="radiogroup"] label:hover > div {
-        background: rgba(255,255,255,0.04) !important;
-        color: #e2e8f0 !important;
-    }
-    [data-testid="stSidebar"] div[role="radiogroup"] > label > div:first-child {
-        display: none !important;
-    }
-    .sidebar-divider {
-        border: none;
-        border-top: 1px solid rgba(255,255,255,0.06);
-        margin: 14px 0;
-    }
-
-    [data-testid="stSidebar"] .stButton:last-child > button {
-        background: rgba(239,68,68,0.08) !important;
-        border: 1px solid rgba(239,68,68,0.2) !important;
-        color: #f87171 !important;
-        font-weight: 600 !important;
-        border-radius: 10px !important;
-        letter-spacing: 0.2px !important;
-        transition: all 0.18s !important;
-        font-size: 0.875rem !important;
-    }
-    [data-testid="stSidebar"] .stButton:last-child > button:hover {
-        background: rgba(99,102,241,0.12) !important;
-        border-color: rgba(239,68,68,0.5) !important;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.25) !important;
-    }
-
-    .metric-card {
-        background: linear-gradient(145deg, #0f1420, #111827);
-        border: 1px solid rgba(255,255,255,0.07);
-        border-radius: 20px;
-        padding: 26px 24px 22px;
-        text-align: left;
-        position: relative;
-        overflow: hidden;
-        transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-    }
-    .metric-card::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        border-radius: 20px;
-        background: radial-gradient(ellipse at top left, rgba(255,255,255,0.03), transparent 60%);
-        pointer-events: none;
-    }
-    .metric-card:hover {
-        transform: translateY(-4px);
-        border-color: rgba(255,255,255,0.12);
-        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-    }
-    .metric-card-icon { font-size: 1.6rem; margin-bottom: 14px; display: block; line-height: 1; }
-    .metric-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: #64748b; margin-bottom: 6px; font-weight: 600; }
-    .metric-value { font-family: 'JetBrains Mono', monospace; font-size: 1.75rem; font-weight: 600; margin: 0; letter-spacing: -0.5px; }
-    .metric-value.income  { color: #34d399; }
-    .metric-value.expense { color: #f87171; }
-    .metric-value.balance { color: #818cf8; }
-    .metric-value.budget  { color: #c084fc; }
-    .metric-sub { font-size: 0.72rem; color: #475569; margin-top: 8px; font-weight: 500; }
-    .card-income  { border-left: 3px solid #34d399 !important; box-shadow: -4px 0 20px rgba(52,211,153,0.15); }
-    .card-expense { border-left: 3px solid #f87171 !important; box-shadow: -4px 0 20px rgba(248,113,113,0.15); }
-    .card-balance { border-left: 3px solid #818cf8 !important; box-shadow: -4px 0 20px rgba(129,140,248,0.15); }
-    .card-budget  { border-left: 3px solid #c084fc !important; box-shadow: -4px 0 20px rgba(192,132,252,0.15); }
-
-    .section-header {
-        font-size: 1rem; font-weight: 700; color: #94a3b8;
-        text-transform: uppercase; letter-spacing: 2px;
-        margin: 32px 0 16px 0; display: flex; align-items: center; gap: 10px;
-    }
-    .section-header::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(99,102,241,0.3), transparent); }
-
-    .page-title {
-        font-size: 2rem; font-weight: 800;
-        background: linear-gradient(135deg, #e2e8f0 30%, #94a3b8);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        background-clip: text; margin-bottom: 4px; letter-spacing: -0.8px; line-height: 1.1;
-    }
-    .page-subtitle { font-size: 0.85rem; color: #475569; margin-bottom: 32px; font-weight: 400; }
-
-    .banner { border-radius: 12px; padding: 14px 18px; margin: 10px 0; font-size: 0.875rem; font-weight: 500; display: flex; align-items: center; gap: 10px; backdrop-filter: blur(8px); }
-    .banner-danger  { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.25);  color: #fca5a5; }
-    .banner-warn    { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); color: #fcd34d; }
-    .banner-success { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.25); color: #6ee7b7; }
-
-    .stSelectbox div[data-baseweb="select"] > div,
-    .stTextInput > div > div > input,
-    .stNumberInput > div > div > input,
-    .stTextArea > div > div > textarea,
-    .stDateInput > div > div > input {
-        background: #0f1520 !important;
-        border: 1px solid rgba(255,255,255,0.08) !important;
-        border-radius: 12px !important;
-        color: #e2e8f0 !important;
-        font-family: 'Inter', sans-serif !important;
-        font-size: 0.9rem !important;
-        transition: border-color 0.18s, box-shadow 0.18s !important;
-    }
-    .stTextInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus,
-    .stNumberInput > div > div > input:focus {
-        border-color: rgba(99,102,241,0.5) !important;
-        box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important;
-        outline: none !important;
-    }
-    div[data-baseweb="input"] { height: 50px !important; }
-    div[data-baseweb="popover"] { background: #0f1520 !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 12px !important; }
-
-    label[data-testid="stWidgetLabel"] p,
-    .stSelectbox label, .stTextInput label,
-    .stNumberInput label, .stTextArea label, .stDateInput label {
-        font-size: 0.72rem !important; font-weight: 600 !important;
-        text-transform: uppercase !important; letter-spacing: 1.5px !important;
-        color: #475569 !important; margin-bottom: 6px !important;
-    }
-
-    .stButton > button {
-        background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
-        color: #fff !important; border: none !important; border-radius: 12px !important;
-        font-family: 'Inter', sans-serif !important; font-weight: 600 !important;
-        font-size: 0.875rem !important; letter-spacing: 0.2px !important;
-        padding: 0 20px !important; height: 46px !important;
-        transition: all 0.18s ease !important; box-shadow: 0 4px 15px rgba(79,70,229,0.3) !important;
-    }
-    .stButton > button:hover {
-        background: linear-gradient(135deg, #4338ca, #6d28d9) !important;
-        transform: translateY(-2px) !important; box-shadow: 0 8px 25px rgba(79,70,229,0.45) !important;
-    }
-    .stButton > button:active { transform: translateY(0) !important; }
-
-    .stFormSubmitButton > button {
-        background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
-        color: #fff !important; border: none !important; border-radius: 12px !important;
-        font-weight: 700 !important; font-size: 0.95rem !important;
-        height: 52px !important; width: 100% !important;
-        transition: all 0.18s ease !important; box-shadow: 0 4px 20px rgba(79,70,229,0.35) !important;
-    }
-    .stFormSubmitButton > button:hover {
-        background: linear-gradient(135deg, #4338ca, #6d28d9) !important;
-        transform: translateY(-2px) !important; box-shadow: 0 10px 30px rgba(79,70,229,0.5) !important;
-    }
-
-    .stDownloadButton > button {
-        background: rgba(99,102,241,0.1) !important;
-        border: 1px solid rgba(99,102,241,0.3) !important;
-        color: #a5b4fc !important; box-shadow: none !important;
-    }
-    .stDownloadButton > button:hover { background: rgba(99,102,241,0.2) !important; box-shadow: none !important; }
-
-    .stDataFrame { border-radius: 14px !important; overflow: hidden !important; border: 1px solid rgba(255,255,255,0.06) !important; }
-    .stDataFrame [data-testid="stDataFrameResizable"] { background: #0f1520 !important; }
-
-    .stTabs [data-baseweb="tab-list"] {
-        background: #0d111a !important; border-radius: 12px !important;
-        gap: 4px !important; padding: 5px !important;
-        border: 1px solid rgba(255,255,255,0.06) !important;
-    }
-
-    hr { border-color: rgba(255,255,255,0.06) !important; }
-    .stProgress > div > div > div { background: linear-gradient(90deg, #4f46e5, #7c3aed) !important; border-radius: 99px !important; }
-    .stProgress > div > div { background: rgba(255,255,255,0.06) !important; border-radius: 99px !important; }
-
-    [data-testid="stMetric"] {
-        background: linear-gradient(145deg, #0f1420, #111827) !important;
-        border: 1px solid rgba(255,255,255,0.07) !important;
-        border-radius: 16px !important; padding: 20px !important;
-    }
-    [data-testid="stMetricValue"] { color: #e2e8f0 !important; font-family: 'JetBrains Mono', monospace !important; }
-    [data-testid="stMetricLabel"] { color: #64748b !important; font-size: 0.72rem !important; text-transform: uppercase; letter-spacing: 1.5px; }
-
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 99px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.5); }
-
-    .stAlert { border-radius: 12px !important; border: none !important; }
-    </style>
-    """, unsafe_allow_html=True)
+    try:
+        from pathlib import Path
+        css_path = Path(__file__).parent / "styles" / "app.css"
+        with open(css_path, "r", encoding="utf-8") as f:
+            css = f.read()
+        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Error loading CSS: {e}")
 
 
 # ─────────────────────────────────────────────
@@ -610,12 +484,12 @@ def page_dashboard(df: pd.DataFrame, settings: dict):
     with col_health:
         render_section_header("🏥 Health Score")
         st.markdown(f"""
-        <div class="metric-card card-balance" style="text-align: center; padding: 30px 20px;">
-            <div style="font-size: 3.2rem; font-weight: 800; color: #818cf8; font-family: 'JetBrains Mono', monospace; line-height: 1;">
-                {health_info['score']}<span style="font-size:1.5rem; color:#475569;">/100</span>
+        <div class="metric-card card-balance health-score-card">
+            <div class="health-score-number">
+                {health_info['score']}<span>/100</span>
             </div>
-            <div style="font-size: 1rem; font-weight: 700; color: #e2e8f0; margin-top: 12px;">{health_info['status']}</div>
-            <div style="font-size: 0.72rem; color: #64748b; margin-top: 8px; font-weight: 500;">
+            <div class="health-score-status">{health_info['status']}</div>
+            <div class="health-score-desc">
                 Calculated on savings rate, consistency, and budget usage.
             </div>
         </div>
@@ -625,14 +499,14 @@ def page_dashboard(df: pd.DataFrame, settings: dict):
         render_section_header("🤖 Copilot Insights")
         insight_html = ""
         for ins in insights:
-            color_border = "rgba(99,102,241,0.3)"
+            cls = ""
             if "📈" in ins or "⚠️" in ins or "⚡" in ins or "🚨" in ins:
-                color_border = "rgba(248,113,113,0.3)"
+                cls = "warn"
             elif "📉" in ins or "💰" in ins or "✅" in ins:
-                color_border = "rgba(52,211,153,0.3)"
+                cls = "good"
                 
             insight_html += f"""
-            <div style="background:rgba(255,255,255,0.02); border-left:3px solid {color_border}; border-radius:8px; padding:10px 14px; margin-bottom:8px; font-size:0.875rem;">
+            <div class="copilot-insight {cls}">
                 {ins}
             </div>
             """
@@ -700,23 +574,17 @@ def page_add_transaction(df: pd.DataFrame, settings: dict):
 
     st.markdown(f"""
     <style>
-    [data-testid="stButton-_exp_btn"] > button,
-    [data-testid="stButton-_inc_btn"] > button {{
-        height: 82px !important; border-radius: 18px !important;
-        font-family: 'Inter', sans-serif !important; font-size: 1rem !important;
-        font-weight: 700 !important; letter-spacing: 0.1px !important; transition: all 0.2s ease !important;
-    }}
     [data-testid="stButton-_exp_btn"] > button {{
-        background: {"linear-gradient(135deg, #2d0a0a 0%, #450f0f 100%)" if t_type == "Expense" else "rgba(239,68,68,0.04)"} !important;
-        border: 2px solid {"#ef4444" if t_type == "Expense" else "rgba(239,68,68,0.15)"} !important;
-        color: {"#fca5a5" if t_type == "Expense" else "#4a2525"} !important;
-        box-shadow: {"0 0 0 4px rgba(239,68,68,0.1), 0 12px 35px rgba(239,68,68,0.25)" if t_type == "Expense" else "none"} !important;
+        background: {"linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(239,68,68,0.05) 100%)" if t_type == "Expense" else "rgba(255,255,255,0.02)"} !important;
+        border: 2px solid {"#f87171" if t_type == "Expense" else "rgba(255,255,255,0.05)"} !important;
+        color: {"#fca5a5" if t_type == "Expense" else "var(--text-muted)"} !important;
+        box-shadow: {"0 0 0 4px rgba(239,68,68,0.08), 0 12px 35px rgba(239,68,68,0.18)" if t_type == "Expense" else "none"} !important;
     }}
     [data-testid="stButton-_inc_btn"] > button {{
-        background: {"linear-gradient(135deg, #052010 0%, #083018 100%)" if t_type == "Income" else "rgba(52,211,153,0.04)"} !important;
-        border: 2px solid {"#34d399" if t_type == "Income" else "rgba(52,211,153,0.15)"} !important;
-        color: {"#6ee7b7" if t_type == "Income" else "#1a3d2a"} !important;
-        box-shadow: {"0 0 0 4px rgba(52,211,153,0.1), 0 12px 35px rgba(52,211,153,0.25)" if t_type == "Income" else "none"} !important;
+        background: {"linear-gradient(135deg, rgba(52,211,153,0.15) 0%, rgba(52,211,153,0.05) 100%)" if t_type == "Income" else "rgba(255,255,255,0.02)"} !important;
+        border: 2px solid {"#34d399" if t_type == "Income" else "rgba(255,255,255,0.05)"} !important;
+        color: {"#6ee7b7" if t_type == "Income" else "var(--text-muted)"} !important;
+        box-shadow: {"0 0 0 4px rgba(52,211,153,0.08), 0 12px 35px rgba(52,211,153,0.18)" if t_type == "Income" else "none"} !important;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -929,16 +797,31 @@ def page_analytics(df: pd.DataFrame):
 
 
 # ─────────────────────────────────────────────
+def update_user_name(user_uuid: str, new_username: str):
+    st.session_state["user"] = new_username
+    if supabase is not None and user_uuid:
+        try:
+            supabase.table("profiles").upsert({
+                "id": user_uuid,
+                "username": new_username
+            }).execute()
+        except Exception:
+            pass
+
+
+# ─────────────────────────────────────────────
 #  PAGE: SETTINGS
 # ─────────────────────────────────────────────
 
 def page_settings(settings: dict) -> dict:
-    from database import get_gemini_key, save_gemini_key
-    
     st.markdown('<div class="page-title">Settings</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Configure your budget, API keys, and database options</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-subtitle">Configure your profile, budget, alerts, and database options</div>', unsafe_allow_html=True)
 
     user_uuid = st.session_state.get("user_uuid")
+    current_username = st.session_state.get("user", "")
+
+    render_section_header("👤 Profile Settings")
+    new_username = st.text_input("Display Name", value=current_username, placeholder="Enter your display name", help="Change your display name shown in the app")
 
     render_section_header("💼 Monthly Budget")
     budget = st.number_input("Set your monthly budget (₹)", min_value=0.0,
@@ -950,92 +833,30 @@ def page_settings(settings: dict) -> dict:
                             value=float(settings.get("daily_limit", 0)), step=50.0, format="%.2f",
                             help="You'll be warned when you exceed this each day. Set ₹0 to disable.")
 
-    render_section_header("🤖 AI Copilot Configuration")
-    existing_key = get_gemini_key(user_uuid)
-    gemini_key = st.text_input("Gemini API Key", value=existing_key, type="password", 
-                               placeholder="AI Copilot needs this key to converse (starts with AIza...)",
-                               help="Get an API key from Google AI Studio")
+    import os
+    global_api_key_set = bool(os.getenv("GEMINI_API_KEY"))
+    gemini_key = ""
+    
+    if not global_api_key_set:
+        render_section_header("🤖 AI Copilot Configuration")
+        from database import get_gemini_key
+        existing_key = get_gemini_key(user_uuid)
+        gemini_key = st.text_input("Gemini API Key", value=existing_key, type="password", 
+                                   placeholder="starts with AIza...",
+                                   help="Get an API key from Google AI Studio")
 
     if st.button("💾 Save Settings"):
+        if new_username and new_username.strip() and new_username != current_username:
+            update_user_name(user_uuid, new_username.strip())
         new_settings = {"monthly_budget": budget, "daily_limit": daily}
         user = st.session_state["user"]
         save_settings(user, new_settings)
-        save_gemini_key(user_uuid, gemini_key)
+        if not global_api_key_set and gemini_key:
+            from database import save_gemini_key
+            save_gemini_key(user_uuid, gemini_key)
         st.success("✅ Settings saved successfully!")
+        st.rerun()
         return new_settings
-
-    render_section_header("💾 Supabase Schema Setup")
-    with st.expander("Show SQL Setup Script"):
-        st.markdown("""
-        If you want to sync your **Split Bills** and **Smart Goals** across multiple devices, run this SQL script in your **Supabase SQL Editor** to create the required tables:
-        """)
-        sql_content = """-- SQL schema to upgrade SpendWise database with Split Bills and Smart Goals tables.
--- Run this in your Supabase SQL Editor (Dashboard > SQL Editor > New query > Run).
-
--- 1. SMART GOALS TABLE
-CREATE TABLE IF NOT EXISTS goals (
-    id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    target_amount NUMERIC(15, 2) NOT NULL,
-    current_amount NUMERIC(15, 2) DEFAULT 0.00,
-    target_date DATE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 2. SPLIT BILLS GROUPS
-CREATE TABLE IF NOT EXISTS split_groups (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    created_by UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 3. SPLIT BILLS GROUP MEMBERS
-CREATE TABLE IF NOT EXISTS split_group_members (
-    id SERIAL PRIMARY KEY,
-    group_id INT REFERENCES split_groups(id) ON DELETE CASCADE,
-    friend_name TEXT NOT NULL,
-    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT unique_group_friend UNIQUE (group_id, friend_name)
-);
-
--- 4. SPLIT BILLS
-CREATE TABLE IF NOT EXISTS split_bills (
-    id SERIAL PRIMARY KEY,
-    group_id INT REFERENCES split_groups(id) ON DELETE CASCADE,
-    description TEXT NOT NULL,
-    amount NUMERIC(15, 2) NOT NULL,
-    paid_by_name TEXT NOT NULL,
-    paid_by_uid UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    date DATE NOT NULL,
-    split_type TEXT DEFAULT 'equal',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 5. SPLIT BILL SHARES
-CREATE TABLE IF NOT EXISTS split_bill_shares (
-    id SERIAL PRIMARY KEY,
-    bill_id INT REFERENCES split_bills(id) ON DELETE CASCADE,
-    member_name TEXT NOT NULL,
-    share_amount NUMERIC(15, 2) NOT NULL,
-    has_settled BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT unique_bill_member UNIQUE (bill_id, member_name)
-);
-
--- 6. SPLIT SETTLEMENTS
-CREATE TABLE IF NOT EXISTS split_settlements (
-    id SERIAL PRIMARY KEY,
-    group_id INT REFERENCES split_groups(id) ON DELETE CASCADE,
-    from_member TEXT NOT NULL,
-    to_member TEXT NOT NULL,
-    amount NUMERIC(15, 2) NOT NULL,
-    date DATE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);"""
-        st.code(sql_content, language="sql")
 
     return settings
 
@@ -1047,24 +868,25 @@ CREATE TABLE IF NOT EXISTS split_settlements (
 
 def render_sidebar() -> str:
     with st.sidebar:
-        if os.path.exists("logo.png"):
-            st.image("logo.png", width=200)
+        from pathlib import Path
+        logo_path = Path(__file__).parent / "logo.png"
+        if logo_path.exists():
+            st.image(str(logo_path), width=200)
         st.markdown('<hr class="sidebar-divider">', unsafe_allow_html=True)
 
         user = st.session_state.get("user", "")
         initial = user[0].upper() if user else "?"
         st.markdown(f"""
         <div style="display:flex;align-items:center;gap:12px;padding:10px 4px 16px;">
-            <div style="width:38px;height:38px;border-radius:12px;
-                        background:linear-gradient(135deg,#4f46e5,#7c3aed);
+            <div style="width:38px;height:38px;border-radius:var(--radius-md);
+                        background:var(--accent-gradient);
                         display:flex;align-items:center;justify-content:center;
                         font-size:0.95rem;font-weight:700;color:#fff;
                         box-shadow:0 4px 15px rgba(79,70,229,0.4);flex-shrink:0;">
                 {initial}
             </div>
             <div>
-                <div style="font-size:0.85rem;font-weight:600;color:#e2e8f0;letter-spacing:-0.2px;">{user}</div>
-                <div style="font-size:0.68rem;color:#34d399;font-weight:500;margin-top:1px;">● Active session</div>
+                <div style="font-size:0.88rem;font-weight:600;color:var(--text-primary);letter-spacing:-0.2px;">{user}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1120,9 +942,11 @@ def show_login():
         st.session_state["login_tab"] = "login"
     tab = st.session_state["login_tab"]
 
+    from pathlib import Path
+    logo_path = Path(__file__).parent / "logo.png"
     logo_b64 = ""
-    if os.path.exists("logo.png"):
-        with open("logo.png", "rb") as f:
+    if logo_path.exists():
+        with open(logo_path, "rb") as f:
             logo_b64 = base64.b64encode(f.read()).decode()
 
     login_active   = "background:linear-gradient(135deg,#4f46e5,#7c3aed)!important;color:#fff!important;border:none!important;box-shadow:0 6px 20px rgba(79,70,229,0.4)!important;"
@@ -1137,10 +961,6 @@ def show_login():
 
     st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    #MainMenu, footer, header {{ visibility: hidden; }}
-    html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
-    .stApp {{ background: #060810 !important; }}
     .block-container {{ padding-top: 6vh !important; padding-bottom: 0 !important; max-width: 440px !important; margin: 0 auto !important; }}
     div[data-testid="stVerticalBlock"] > div:has(> div > .lcard) {{
         background: rgba(10, 14, 24, 0.98) !important;
@@ -1149,21 +969,9 @@ def show_login():
         box-shadow: 0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.05) !important;
         backdrop-filter: blur(20px) !important;
     }}
-    .stTextInput label {{ font-size: 0.68rem !important; font-weight: 700 !important; text-transform: uppercase !important; letter-spacing: 1.5px !important; color: #334155 !important; }}
-    .stTextInput > div > div > input {{ background: #080c17 !important; border: 1px solid rgba(255,255,255,0.07) !important; border-radius: 12px !important; color: #e2e8f0 !important; font-size: 0.9rem !important; height: 50px !important; padding: 0 16px !important; }}
-    .stButton > button {{ font-family: 'Inter', sans-serif !important; font-weight: 600 !important; border-radius: 12px !important; transition: all 0.18s !important; white-space: nowrap !important; line-height: 1 !important; }}
     div[data-testid="column"]:nth-of-type(1) .stButton > button {{ {col1_style} height: 42px !important; font-size: 0.82rem !important; }}
     div[data-testid="column"]:nth-of-type(2) .stButton > button {{ {col2_style} height: 42px !important; font-size: 0.82rem !important; }}
     div[data-testid="column"]:nth-of-type(3) .stButton > button {{ {col3_style} height: 42px !important; font-size: 0.82rem !important; }}
-    [data-testid="stButton-login_btn"] > button,
-    [data-testid="stButton-signup_btn"] > button,
-    [data-testid="stButton-forgot_btn"] > button {{
-        background: linear-gradient(135deg,#4f46e5,#7c3aed) !important; color: #fff !important;
-        border: none !important; height: 52px !important; border-radius: 14px !important;
-        font-size: 0.95rem !important; font-weight: 700 !important;
-        box-shadow: 0 8px 28px rgba(79,70,229,0.45) !important; margin-top: 8px !important;
-    }}
-    div[data-baseweb="input"] {{ height: 50px !important; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -1171,7 +979,7 @@ def show_login():
         st.markdown('<div class="lcard" style="display:none"></div>', unsafe_allow_html=True)
 
         if logo_b64:
-            logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-width:180px;max-height:64px;object-fit:contain;display:block;margin:0 auto 6px;">'
+            logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-width:130px;max-height:130px;object-fit:contain;display:block;margin:0 auto 6px;mix-blend-mode:screen;">'
         else:
             logo_html = '<div style="font-size:2.4rem;text-align:center;margin-bottom:6px;">💰</div>'
 
@@ -1249,6 +1057,10 @@ def show_login():
                     else:
                         st.error(f"⚠️ {err}")
 
+        if supabase is None:
+            st.markdown("<hr style='margin:18px 0; border-color:rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
+            st.warning("🔌 Supabase connection is offline or paused. Please check your database settings.")
+
         st.markdown(
             '<p style="font-size:0.65rem;color:#1e293b;text-align:center;margin-top:24px;margin-bottom:0;letter-spacing:0.5px;">'
             'Developed by Sharvil Mithari · <span style="color:#4f46e5;">SpendWise India 2026</span></p>',
@@ -1297,10 +1109,10 @@ def main():
         page_dashboard(df, settings)
     elif page == "🤖 AI Copilot":
         from ai_copilot import ask_ai_copilot, calculate_health_score, generate_automated_insights, get_predictions
-        from database import get_gemini_key, get_goals
+        from database import get_goals, get_gemini_key
         
-        # Load API key and goals
-        gemini_api_key = get_gemini_key(user_uuid)
+        # Check system key first, then fall back to user key in SQLite
+        gemini_api_key = GEMINI_API_KEY if GEMINI_API_KEY else get_gemini_key(user_uuid)
         goals = get_goals(user_uuid)
         health_info = calculate_health_score(df, settings)
         predictions = get_predictions(df, settings)
@@ -1364,11 +1176,11 @@ def main():
                 st.markdown("<br>##### 💬 Conversation History", unsafe_allow_html=True)
                 for chat in st.session_state["chat_history"]:
                     st.markdown(f"""
-                    <div style="background:rgba(255,255,255,0.04); border-left:4px solid #818cf8; border-radius:10px; padding:12px; margin-bottom:10px;">
-                        <strong style="color:#a5b4fc;">👤 You:</strong> {chat['user']}
+                    <div class="chat-bubble-user">
+                        <strong>👤 You:</strong> {chat['user']}
                     </div>
-                    <div style="background:rgba(99,102,241,0.05); border-left:4px solid #c084fc; border-radius:10px; padding:12px; margin-bottom:20px;">
-                        <strong style="color:#c084fc;">🤖 Copilot:</strong><br>{chat['ai']}
+                    <div class="chat-bubble-ai">
+                        <strong>🤖 Copilot:</strong><br>{chat['ai']}
                     </div>
                     """, unsafe_allow_html=True)
                     
