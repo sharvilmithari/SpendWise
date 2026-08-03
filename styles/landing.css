@@ -201,81 +201,83 @@ html, body, [class*="css"] {
     gap: 16px !important;
 }
 
-/* ── PRIMARY BUTTONS (Get Started) ── */
-.sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(1) button,
-.sw-cta-bottom-wrap div[data-testid="column"]:nth-of-type(1) button {
-    position: relative !important;
+/* ── HERO BUTTONS — Sunset Gradient — All Streamlit versions ── */
+
+/* Broadest fallback: any button inside the hero buttons wrap */
+.sw-hero-btns-wrap button {
     height: 60px !important;
     width: 100% !important;
     font-family: 'Space Grotesk', sans-serif !important;
     font-size: 1.05rem !important;
     font-weight: 700 !important;
     color: #ffffff !important;
-    letter-spacing: 0.5px !important;
+    letter-spacing: 0.4px !important;
     border-radius: 16px !important;
     border: none !important;
     cursor: pointer !important;
     background: linear-gradient(135deg, #ff6b57 0%, #9333ea 50%, #6366f1 100%) !important;
-    box-shadow: 0 8px 25px rgba(147, 51, 234, 0.45),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
-    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
-    overflow: hidden !important;
+    box-shadow: 0 8px 25px rgba(147, 51, 234, 0.45) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease !important;
 }
 
-.sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(1) button:hover,
-.sw-cta-bottom-wrap div[data-testid="column"]:nth-of-type(1) button:hover {
+.sw-hero-btns-wrap button:hover {
     transform: translateY(-3px) scale(1.01) !important;
-    box-shadow: 0 14px 35px rgba(255, 107, 87, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 14px 35px rgba(255, 107, 87, 0.55) !important;
     filter: brightness(1.08) !important;
 }
 
-.sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(1) button:active,
-.sw-cta-bottom-wrap div[data-testid="column"]:nth-of-type(1) button:active {
+.sw-hero-btns-wrap button:active {
     transform: translateY(-1px) scale(0.99) !important;
 }
 
-.sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(1) button::after,
-.sw-cta-bottom-wrap div[data-testid="column"]:nth-of-type(1) button::after {
-    content: '' !important;
-    position: absolute !important;
-    top: 0; left: 0; right: 0 !important;
-    height: 50% !important;
-    background: linear-gradient(to bottom, rgba(255,255,255,0.18), transparent) !important;
-    border-radius: 16px 16px 0 0 !important;
-    pointer-events: none !important;
-}
-
-/* ── SECONDARY BUTTONS (Login) ── */
-.sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(2) button {
-    position: relative !important;
-    height: 60px !important;
-    width: 100% !important;
-    font-family: 'Space Grotesk', sans-serif !important;
-    font-size: 1.02rem !important;
-    font-weight: 700 !important;
-    color: #ffffff !important;
-    letter-spacing: 0.3px !important;
-    border-radius: 16px !important;
-    cursor: pointer !important;
+/* Streamlit < 1.37: data-testid="column" */
+.sw-hero-btns-wrap div[data-testid="column"] button,
+.sw-cta-bottom-wrap div[data-testid="column"] button {
     background: linear-gradient(135deg, #ff6b57 0%, #9333ea 50%, #6366f1 100%) !important;
+    color: #ffffff !important;
     border: none !important;
-    box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4) !important;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease !important;
-    opacity: 0.88 !important;
+    border-radius: 16px !important;
+    height: 60px !important;
+    font-weight: 700 !important;
+    box-shadow: 0 8px 25px rgba(147, 51, 234, 0.45) !important;
 }
 
-.sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(2) button:hover {
+/* Streamlit 1.37+: data-testid="stColumn" */
+.sw-hero-btns-wrap div[data-testid="stColumn"] button,
+.sw-cta-bottom-wrap div[data-testid="stColumn"] button {
+    background: linear-gradient(135deg, #ff6b57 0%, #9333ea 50%, #6366f1 100%) !important;
     color: #ffffff !important;
-    opacity: 1 !important;
+    border: none !important;
+    border-radius: 16px !important;
+    height: 60px !important;
+    font-weight: 700 !important;
+    box-shadow: 0 8px 25px rgba(147, 51, 234, 0.45) !important;
+}
+
+/* Streamlit 1.54+: stBaseButton-secondary / stBaseButton-primary */
+.sw-hero-btns-wrap [data-testid="stBaseButton-secondary"],
+.sw-hero-btns-wrap [data-testid="stBaseButton-primary"],
+.sw-hero-btns-wrap [class*="stBaseButton"],
+.sw-cta-bottom-wrap [data-testid="stBaseButton-secondary"],
+.sw-cta-bottom-wrap [data-testid="stBaseButton-primary"] {
+    background: linear-gradient(135deg, #ff6b57 0%, #9333ea 50%, #6366f1 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 16px !important;
+    height: 60px !important;
+    font-weight: 700 !important;
+    box-shadow: 0 8px 25px rgba(147, 51, 234, 0.45) !important;
+}
+
+.sw-hero-btns-wrap [data-testid="stBaseButton-secondary"]:hover,
+.sw-hero-btns-wrap [data-testid="stBaseButton-primary"]:hover,
+.sw-hero-btns-wrap [class*="stBaseButton"]:hover {
     transform: translateY(-3px) scale(1.01) !important;
-    box-shadow: 0 14px 35px rgba(255, 107, 87, 0.5) !important;
+    box-shadow: 0 14px 35px rgba(255, 107, 87, 0.55) !important;
     filter: brightness(1.08) !important;
 }
 
-.sw-hero-btns-wrap div[data-testid="column"]:nth-of-type(2) button:active {
-    transform: translateY(-1px) !important;
-}
+
 
 /* ── STATS BAR ── */
 .sw-stats {
