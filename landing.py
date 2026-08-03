@@ -20,6 +20,48 @@ def inject_landing_css():
 # ─────────────────────────────────────────────
 
 def _hero_section():
+    # Inject targeted button CSS that overrides Streamlit defaults
+    st.markdown("""
+    <style>
+    /* ── HOMEPAGE HERO BUTTONS — Sunset Gradient (matches login page) ── */
+    div[data-testid="stButton-cta_get_started"] > button,
+    div[data-testid="stButton-cta_login"] > button {
+        background: linear-gradient(135deg, #ff6b57 0%, #9333ea 50%, #6366f1 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 16px !important;
+        height: 60px !important;
+        font-family: 'Space Grotesk', sans-serif !important;
+        font-size: 1.05rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.4px !important;
+        box-shadow: 0 8px 25px rgba(147, 51, 234, 0.45) !important;
+        transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease !important;
+        width: 100% !important;
+    }
+
+    div[data-testid="stButton-cta_get_started"] > button:hover,
+    div[data-testid="stButton-cta_login"] > button:hover {
+        transform: translateY(-3px) scale(1.01) !important;
+        box-shadow: 0 14px 35px rgba(255, 107, 87, 0.55) !important;
+        filter: brightness(1.08) !important;
+    }
+
+    div[data-testid="stButton-cta_get_started"] > button:active,
+    div[data-testid="stButton-cta_login"] > button:active {
+        transform: translateY(-1px) scale(0.99) !important;
+    }
+
+    /* Make the Login button slightly more transparent so buttons look distinct */
+    div[data-testid="stButton-cta_login"] > button {
+        opacity: 0.88 !important;
+    }
+    div[data-testid="stButton-cta_login"] > button:hover {
+        opacity: 1 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("""
     <div class="sw-hero">
         <div class="sw-hero-orb-1"></div>
@@ -48,6 +90,7 @@ def _hero_section():
             st.session_state["login_tab"] = "login"
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
