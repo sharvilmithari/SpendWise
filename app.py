@@ -752,19 +752,20 @@ def page_analytics(df: pd.DataFrame):
         fig, ax = plt.subplots(figsize=(5, 4))
         fig.patch.set_facecolor("#0f1520")
         ax.set_facecolor("#0f1520")
-        pie_results = ax.pie(
-            cat_totals, labels=None, autopct="%1.1f%%",
-            colors=CHART_COLORS[:len(cat_totals)], startangle=140,
-            pctdistance=0.75, wedgeprops=dict(width=0.45, edgecolor="#1C2128", linewidth=2),
-        )
-        if len(pie_results) == 3:
+        try:
+            pie_results = ax.pie(
+                cat_totals, labels=None, autopct="%1.1f%%",
+                colors=CHART_COLORS[:len(cat_totals)], startangle=140,
+                pctdistance=0.75, wedgeprops=dict(width=0.45, edgecolor="#1C2128", linewidth=2),
+            )
+            # ax.pie with autopct always returns (wedges, texts, autotexts)
             wedges, texts, autotexts = pie_results
             for at in autotexts:
                 at.set_color("white"); at.set_fontsize(10); at.set_fontweight("bold")
-        else:
-            wedges, texts = pie_results
+        except Exception:
+            pass
         import matplotlib.patches as mpatches
-        legend_patches = [mpatches.Patch(color=CHART_COLORS[i], label=f"{cat}  {fmt(val)}") for i, (cat, val) in enumerate(cat_totals.items())]
+        legend_patches = [mpatches.Patch(color=CHART_COLORS[i % len(CHART_COLORS)], label=f"{cat}  {fmt(val)}") for i, (cat, val) in enumerate(cat_totals.items())]
         ax.legend(handles=legend_patches, loc="center left", bbox_to_anchor=(1, 0.5), fontsize=9, frameon=False, labelcolor="white")
         ax.set_title("Expense by Category", color="#E6EDF3", fontsize=14, fontweight="bold", pad=18)
         st.pyplot(fig, use_container_width=True)
@@ -774,16 +775,18 @@ def page_analytics(df: pd.DataFrame):
         expenses["month"] = expenses["date"].dt.to_period("M")
         monthly = expenses.groupby("month")["amount"].sum().reset_index()
         monthly["month_str"] = monthly["month"].astype(str)
-        monthly = monthly.sort_values("month")
+        monthly = monthly.sort_values("month").reset_index(drop=True)
         fig, ax = plt.subplots(figsize=(10, 5))
         fig.patch.set_facecolor("#0f1520"); ax.set_facecolor("#0f1520")
         bars = ax.bar(monthly["month_str"], monthly["amount"], color="#4f46e5", edgecolor="#0f1520", linewidth=0.5, width=0.5)
         if len(bars) > 0:
-            max_idx = monthly["amount"].idxmax()
-            bars[monthly.index.get_loc(max_idx)].set_color("#7c3aed")
+            # Use positional index after reset_index to avoid index mismatch
+            max_pos = int(monthly["amount"].idxmax())
+            bars[max_pos].set_color("#7c3aed")
+        max_val = monthly["amount"].max() if not monthly.empty else 1
         for bar in bars:
             h = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width() / 2, h + (monthly["amount"].max() * 0.01), fmt(h), ha="center", va="bottom", color="#94a3b8", fontsize=8)
+            ax.text(bar.get_x() + bar.get_width() / 2, h + (max_val * 0.01), fmt(h), ha="center", va="bottom", color="#94a3b8", fontsize=8)
         ax.tick_params(colors="#475569", labelsize=9)
         for spine in ["bottom", "left"]:
             ax.spines[spine].set_color("#1e293b")
@@ -1045,6 +1048,18 @@ def show_login():
                         st.rerun()
                     else:
                         st.error(f"❌ {err}")
+
+            # Forgot password link
+            st.markdown("""
+            <div style='text-align:center;margin-top:10px;'>
+                <span style='font-size:0.83rem;color:#64748b;'>Forgot your password? </span>
+            </div>
+            """, unsafe_allow_html=True)
+            c_fp_l, c_fp_m, c_fp_r = st.columns([1.5, 2, 1.5])
+            with c_fp_m:
+                if st.button("Reset Password", key="switch_to_forgot", use_container_width=True):
+                    st.session_state["login_tab"] = "forgot"
+                    st.rerun()
 
             st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
             c_left, c_mid, c_right = st.columns([1, 4, 1])
