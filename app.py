@@ -1,7 +1,7 @@
 from itertools import count
 
 import streamlit as st
-from landing import show_landing_page  # ← landing page module
+from landing import show_landing_page 
 import pandas as pd
 import json
 import os
