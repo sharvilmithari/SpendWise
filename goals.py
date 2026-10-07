@@ -117,7 +117,7 @@ def page_smart_goals(df: pd.DataFrame, user_uuid: str):
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # Render progress bar
+                # Render progress bar.
                 st.progress(progress_pct / 100.0)
                 
                 st.markdown(f"""
